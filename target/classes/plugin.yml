@@ -1,0 +1,6 @@
+name: SentinelAi
+version: '1.0'
+main: net.shieldbreak.sentinelai.Main
+api-version: '1.16'
+commands:
+  sentinel:
