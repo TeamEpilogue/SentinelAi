@@ -5,8 +5,10 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.util.Vector;
 
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -28,6 +30,40 @@ public class Listener implements org.bukkit.event.Listener {
 
         startRecording(player);
     }
+
+
+    @EventHandler
+    public void onPlayerDamage(EntityDamageByEntityEvent event) {
+        Bukkit.broadcastMessage("BINGCHILLING");
+        if (event.getDamager() instanceof Player && event.getEntity() instanceof Player) {
+            Player damager = (Player) event.getDamager();
+            Player damaged = (Player) event.getEntity();
+
+            double damagedX = damaged.getLocation().getX();
+            double damagedZ = damaged.getLocation().getZ();
+
+            double damagerPitch = damager.getLocation().getPitch();
+            double damagerYaw = damager.getLocation().getYaw();
+
+            Vector directionVector = new org.bukkit.util.Vector(-Math.sin(damagerYaw) * Math.cos(damagerPitch),
+                    -Math.sin(damagerPitch),
+                    Math.cos(damagerYaw) * Math.cos(damagerPitch));
+
+
+            double distanceToDamaged = damager.getLocation().distance(damaged.getLocation());
+
+            double newX = damager.getLocation().getX() + (distanceToDamaged * directionVector.getX());
+            double newZ = damager.getLocation().getZ() + (distanceToDamaged * directionVector.getZ());
+
+            double vectorOffsetX = newX - damagedX;
+            double vectorOffsetZ = newZ - damagedZ;
+
+
+
+            Bukkit.broadcastMessage("New coordinates: (" + vectorOffsetX + ", " + vectorOffsetZ + ")");
+        }
+    }
+
 
 
     // recording logic
@@ -77,44 +113,48 @@ public class Listener implements org.bukkit.event.Listener {
     }
 
     private void sendJsonDataToServer(String json, Player player) {
-        try {
-            URL url = new URL(Main.getServerBaseUrl() + "analyse/large");
+        Bukkit.getScheduler().runTaskAsynchronously(Main.getInstance(), () -> {
+            try {
+                URL url = new URL(Main.getServerBaseUrl() + "production/analyse");
 
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("POST");
-            connection.setRequestProperty("Content-Type", "application/json");
-            connection.setDoOutput(true);
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("POST");
+                connection.setRequestProperty("Content-Type", "application/json");
+                connection.setDoOutput(true);
 
-            try (OutputStream os = connection.getOutputStream()) {
-                byte[] input = json.getBytes("utf-8");
-                os.write(input, 0, input.length);
+                try (OutputStream os = connection.getOutputStream()) {
+                    byte[] input = json.getBytes("utf-8");
+                    os.write(input, 0, input.length);
+                }
+
+                int responseCode = connection.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    String jsonResponse = readResponse(connection);
+
+                    Map<String, Double> extractedData = extractKeys(jsonResponse, "cheating", "legitimate", "baritone","baritone.mining","baritone.walking");
+
+                    String largestKey = findLargestKey(extractedData);
+                    Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
+                        for (Player debugPlayer : Main.getDebugPlayers()) {
+                            debugPlayer.sendMessage(Main.getPrefixDebugger() + jsonResponse);
+                        }
+                        
+                        if (!"legitimate".equals(largestKey)) {
+                            for (Player adminPlayer : Main.getAdminNotificationPlayers()) {
+                                adminPlayer.sendMessage(Main.getPrefix() + "§aVerdict for " + player.getName() + " at " + System.currentTimeMillis() + ": §d" + largestKey);
+                            }
+                        }
+                        for (Player debugPlayer : Main.getDebugPlayers()) {
+                            debugPlayer.sendMessage(Main.getPrefixDebugger() + "Verdict for " + player.getName() + " at " + System.currentTimeMillis() + ": §d" + largestKey);
+                        }
+                    });
+                } else {
+                    System.out.println("Failed to send data. Response code: " + responseCode);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-
-            int responseCode = connection.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                String jsonResponse = readResponse(connection);
-
-                Map<String, Double> extractedData = extractKeys(jsonResponse, "cheating", "legitimate", "baritone","baritone.mining","baritone.walking");
-
-                String largestKey = findLargestKey(extractedData);
-                for (Player debugPlayer : Main.getDebugPlayers()) {
-                    debugPlayer.sendMessage(Main.getPrefixDebugger() + jsonResponse);
-                }
-                
-                if (!"legitimate".equals(largestKey)) {
-                    for (Player adminPlayer : Main.getAdminNotificationPlayers()) {
-                        adminPlayer.sendMessage(Main.getPrefix() + "§aVerdict for " + player.getName() + " at " + System.currentTimeMillis() + ": §d" + largestKey);
-                    }
-                }
-                for (Player debugPlayer : Main.getDebugPlayers()) {
-                    debugPlayer.sendMessage(Main.getPrefixDebugger() + "Verdict for " + player.getName() + " at " + System.currentTimeMillis() + ": §d" + largestKey);
-                }
-            } else {
-                System.out.println("Failed to send data. Response code: " + responseCode);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        });
     }
 
 

@@ -52,11 +52,9 @@ class MovementData {
 
         MovementData other = (MovementData) obj;
 
-        // Compare all fields except timeSinceStarted
         return Float.compare(other.pitch, pitch) == 0 && Float.compare(other.yaw, yaw) == 0;
     }
 
-    // Override hashCode as well if you override equals
     @Override
     public int hashCode() {
         return Objects.hash(x, y, z, pitch, yaw);

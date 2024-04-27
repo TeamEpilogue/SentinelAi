@@ -1,6 +1,8 @@
 package net.shieldbreak.sentinelai;
 
 import com.google.gson.Gson;
+
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -15,7 +17,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class Commands implements CommandExecutor {
 
@@ -153,55 +154,60 @@ public class Commands implements CommandExecutor {
     }
 
     private void sendJsonDataToServer(CommandSender sender) {
-        try {
-            URL url = new URL(Main.getServerBaseUrl() + "analyse/large");
+        Bukkit.getScheduler().runTaskAsynchronously(Main.getInstance(), () -> {
+            try {
+                URL url = new URL(Main.getServerBaseUrl() + "production/analyse");
 
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("POST");
-            connection.setRequestProperty("Content-Type", "application/json");
-            connection.setDoOutput(true);
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("POST");
+                connection.setRequestProperty("Content-Type", "application/json");
+                connection.setDoOutput(true);
 
-            try (OutputStream os = connection.getOutputStream()) {
-                byte[] input = json.getBytes("utf-8");
-                os.write(input, 0, input.length);
-            }
-
-            int responseCode = connection.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                String jsonResponse = readResponse(connection);
-
-                // Extract specific keys from the JSON response
-                Map<String, Double> extractedData = extractKeys(jsonResponse, "cheating", "legitimate", "baritone","baritone.mining","baritone.walking");
-
-                String verdictColor = "";
-                // Find the key with the largest value
-                String largestKey = findLargestKey(extractedData);
-                if (!"legitimate".equals(largestKey)) {
-                    verdictColor = "§x§d§c§1§4§3§c"; // RED
-                } else {
-                    verdictColor = "§x§1§b§d§9§6§e§l"; // SENTINEL GREEN
+                try (OutputStream os = connection.getOutputStream()) {
+                    byte[] input = json.getBytes("utf-8");
+                    os.write(input, 0, input.length);
                 }
 
-                sender.sendMessage("");
-                sender.sendMessage("");
-                sender.sendMessage("");
-                sender.sendMessage("");
-                sender.sendMessage("");
-                sender.sendMessage("");
-                sender.sendMessage("");
-                sender.sendMessage("   §x§1§b§d§9§6§e§lAnalysis Done!");
-                sender.sendMessage("   §aSentinel verdict: "+verdictColor+largestKey);
-                sender.sendMessage("");
-                sender.sendMessage("");
-                sender.sendMessage("");
-                sender.sendMessage("");
+                int responseCode = connection.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    String jsonResponse = readResponse(connection);
 
-            } else {
-                System.out.println("Failed to send data. Response code: " + responseCode);
+                    // Extract specific keys from the JSON response
+                    Map<String, Double> extractedData = extractKeys(jsonResponse, "cheating", "legitimate", "baritone","baritone.mining","baritone.walking");
+
+                    String verdictColor = "";
+                    // Find the key with the largest value
+                    String largestKey = findLargestKey(extractedData);
+                    if (!"legitimate".equals(largestKey)) {
+                        verdictColor = "§x§d§c§1§4§3§c"; // RED
+                    } else {
+                        verdictColor = "§x§1§b§d§9§6§e§l"; // SENTINEL GREEN
+                    }
+
+                    String finalVerdictColor = verdictColor;
+                    Bukkit.getScheduler().runTask(Main.getInstance(), () -> {
+                        sender.sendMessage("");
+                        sender.sendMessage("");
+                        sender.sendMessage("");
+                        sender.sendMessage("");
+                        sender.sendMessage("");
+                        sender.sendMessage("");
+                        sender.sendMessage("");
+                        sender.sendMessage("   §x§1§b§d§9§6§e§lAnalysis Done!");
+                        sender.sendMessage("   §aSentinel verdict: "+ finalVerdictColor +largestKey);
+                        sender.sendMessage("");
+                        sender.sendMessage("");
+                        sender.sendMessage("");
+                        sender.sendMessage("");
+                    });
+
+                } else {
+                    System.out.println("Failed to send data. Response code: " + responseCode);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        });
     }
 
     private String readResponse(HttpURLConnection connection) throws Exception {
